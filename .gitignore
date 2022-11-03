@@ -1,0 +1,5 @@
+env
+.env
+rssi_data.xlsx
+rssi_data.csv
+.DS_Store
