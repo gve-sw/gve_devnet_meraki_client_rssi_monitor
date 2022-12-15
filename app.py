@@ -22,9 +22,11 @@ load_dotenv()
 RESOLUTION = 300
 #timespan for which the information will be fetched, in seconds 
 TIMESPAN = 86400
+RSSI_THRESHOLD = -75
 API_KEY = os.environ['API_KEY']
 ORG_NAME = os.environ['ORG_NAME']
 NET_NAME = os.environ['NET_NAME']
+SSID = os.environ['SSID']
 
 dashboard = meraki.DashboardAPI(API_KEY, suppress_logging=True)
 
@@ -43,13 +45,21 @@ def main():
         print("Retrieved networks from the organization")
         #get information about the existing APs on the defined network
         aps = get_meraki_aps(org_id, network_id)
+        print("Retrieved APs from the network")
         #get the clients that have connected to each AP
-        clients = get_clients_per_device(aps)
+        clients = get_network_clients(network_id)
+        print("Retrieved wireless clients from the network")
+        #filter the clients of the network by a provided ssid
+        clients = filter_clients_by_ssid(clients)
+        #join clients under a specific AP of the network, useful for relevant RSSI info
+        clients = match_clients_to_aps(clients, aps)
         #structuring the obtained client data into a more manageable format 
         client_info = parse_client_info(clients)
         #get rssi information for each of the clients we've received
         client_info = get_rssi_from_clients(network_id, client_info)   
+        #structuring the rssi info with the clients and APs
         rssi_list = parse_rssi_from_clients(client_info)
+        #exports the obtained data to a CSV file using pandas
         export_data(rssi_list)
 
 '''This function returns the organization id that is associated
@@ -86,19 +96,35 @@ def get_meraki_aps(org_id, network_id):
     print(aps)
     return aps
 
-'''This function retrieves all the clients for each AP in the network. 
-The function returns a dictionary of AP information and the associated 
-clients under the key of the AP's unique serial '''
-def get_clients_per_device(aps):   
+'''This function retrieves all the wireless clients in the network from the
+ past day. The function returns a dictionary of clients.'''
+def get_network_clients(network_id):   
+    resp = dashboard.networks.getNetworkClients(network_id, recentDeviceConnections='Wireless', 
+    timespan=TIMESPAN, total_pages='all')
+    return resp
+
+'''The function below filters the clients of the network by a given SSID. A 
+list of these clients will be returned.'''
+def filter_clients_by_ssid(clients):
+    ssid_clients = []
+    for client in clients:
+        if client["ssid"] == SSID:
+            ssid_clients.append(client)
+    return ssid_clients
+
+'''This function takes the filtered clients belonging to a specific SSID
+and matches them to an AP of the network. This is done by taking the APs
+found from a previous function and comparing the serials to the 'recentDeviceSerial' 
+parameter. If there is a match then store the clients under the serial of the AP'''
+def match_clients_to_aps(clients, aps):
     clients_per_device = {}
-    
-    for ap in aps: 
+    for ap in aps:
         serial = ap['serial']
-        resp = dashboard.devices.getDeviceClients(serial, timespan=TIMESPAN)
-        print(resp)
-        if resp:
-            clients_per_device[serial] = ap
-            clients_per_device[serial].update({'clients' : resp})
+        clients_per_device[serial] = ap
+        clients_per_device[serial]['clients'] = []
+        for client in clients: 
+            if client['recentDeviceSerial'] == serial:
+                clients_per_device[serial]['clients'].append(client)
     return clients_per_device
 
 '''This function filters and restructures the already attained information
@@ -110,27 +136,24 @@ def parse_client_info(clients_per_device):
             apSerial = ap['serial']
             apName = ap['name']
             apMac = ap['mac']
-            apLat = ap['lat']
-            apLng = ap['lng']
-            apAddress = ap['address']
+            apTagList = ap['tags']
+            apTags = ", ".join(apTagList)
 
             for client in ap['clients']:
                 clientId = client['id']
                 clientMac = client['mac']
                 clientDescription = client['description']
-                clientHostName = client['dhcpHostname']
+                clientSSID = client['ssid']
 
                 client_info[clientId] = {
                     'clientId': clientId,
                     'clientMac': clientMac,
                     'clientDescription': clientDescription,
-                    'clientHostName': clientHostName,
+                    'clientSSID': clientSSID,
                     'apSerial': apSerial,
                     'apName': apName,
                     'apMac': apMac,
-                    'apLat': apLat,
-                    'apLng': apLng,
-                    'apAddress': apAddress
+                    'apTags': apTags
                 }   
         return client_info
     except Exception as e:
@@ -173,19 +196,21 @@ def parse_rssi_from_clients(client_info):
                     'client': client['clientId'],
                     'clientMac': client['clientMac'],
                     'clientDescription': client['clientDescription'],
-                    'clientHostName': client['clientHostName'],
+                    'clientSSID': client['clientSSID'],
                     'apSerial': client['apSerial'],
                     'apName': client['apName'],
                     'apMac': client['apMac'],
-                    'apLat': client['apLat'],
-                    'apLng': client['apLng'],
-                    'apAddress': client['apAddress'],
+                    'apTags': client['apTags'],
                     'rssi': client_rssi['rssi'],
                     'snr': client_rssi['snr'],
                     'startTs': client_rssi['startTs'],
                     'endTs': client_rssi['endTs']   
-                }
-                rssi_list.append(rssi_info)  
+                }      
+                if rssi_info['rssi'] is None: 
+                    continue
+                elif rssi_info['rssi'] <= RSSI_THRESHOLD:
+                    rssi_list.append(rssi_info)  
+
             del client['client_rssi_data']
         return rssi_list
     except Exception as e:
@@ -196,12 +221,9 @@ data to both a CSV file named rssi_data.csv, and an excel file named
 rssi_data.xlsx. The library used to export this data is called Pandas.'''
 def export_data(rssi_list):
     df = pd.DataFrame.from_dict(rssi_list)
+    df = df.sort_values('rssi')
     df.to_csv('rssi_data.csv', encoding='utf-8', index=False)
-
-    with pd.ExcelWriter('rssi_data.xlsx') as writer:
-        df = pd.DataFrame.from_dict(rssi_list)
-        df.to_excel(writer, sheet_name='RSSI Report')
-    
     print("RSSI Data Exported")
+
 if __name__ == "__main__":
     main()

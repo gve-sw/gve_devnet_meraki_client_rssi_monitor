@@ -5,39 +5,62 @@ This prototype provides the user with a report of historical signal qualities se
 * Jordan Coaten
 
 ## Solution Components
-* Meraki SDK
 * Python 3.9 
+* Meraki SDK
+* Pandas
+* Meraki MR with wireless clients
+
+## Workflow
+
+![/IMAGES/workflow.jpg](/IMAGES/Meraki_RSSI_Workflow.png)
 
 ## Installation/Configuration
 The following commands are executed in the terminal.
 
 1. Set up a Python virtual environment. Make sure Python 3 is installed in your environment, and if not, you may download Python [here](https://www.python.org/downloads/). 
-Once Python 3 is installed in your environment, you can activate the virtual environment with the instructions found [here](https://docs.python.org/3/tutorial/venv.html). 
 
-2. Access the created virtual environment folder
 
-        $ cd your_venv
+2.	(Optional) Create and activate a virtual environment - once Python 3 is installed in your environment, you can activate the virtual environment with the instructions found [here](https://docs.python.org/3/tutorial/venv.html).  
+    ```
+    python3 -m venv [add name of virtual environment here] 
+    source [add name of virtual environment here]/bin/activate
+    ```
+  * Access the created virtual environment folder
+    ```
+    cd [add name of virtual environment here] 
+    ```
 
-3. Clone this repository
+3. Clone this Github repository:  
+        ```
+         git clone [add github link here]
+        ```
+  * For Github link: 
+      In Github, click on the **Clone or download** button in the upper part of the page > click the **copy icon**  
+      ![/IMAGES/giturl.png](/IMAGES/giturl.png)
+  * Or simply download the repository as zip file using 'Download ZIP' button and extract it
 
-        $ git clone https://wwwin-github.cisco.com/gve/gve_devnet_meraki_client_rssi_monitor.git
 
-4. Access the folder `gve_devnet_meraki_client_rssi_monitor`
+4. Access the downloaded folder:  
+        ```cd gve_devnet_meraki_client_rssi_monitor```
+    
 
-        $ cd gve_devnet_meraki_client_rssi_monitor
+5. Install all dependencies:  
+        ```pip install -r requirements.txt```
+  
 
-5. Install the dependencies:
+6. Follow the instructions under https://developer.cisco.com/meraki/api/#!authorization/obtaining-your-meraki-api-key to obtain the Meraki API Token. Save the token for a later step.
 
-        $ pip install -r requirements.txt
 
-6. Open the `.env` file and fill out the following environment variables: 
-```
-API_KEY=<your-meraki-api-key>
-ORG_NAME=<your-organisation-name>
-NET_NAME=<your-network-name>
-```
+    > The Meraki API key can be found in the Meraki dashboard, under `My Profile > API access`.
 
-> The Meraki API key can be found in the Meraki dashboard, under `My Profile > API access`.
+
+7. Open the `.env` file and fill out the following environment variables: 
+   ```
+   API_KEY=<your-meraki-api-key>
+   ORG_NAME=<your-organisation-name>
+   NET_NAME=<your-network-name>
+   SSID=<your-SSID>
+   ```
    
 
 ## Usage
@@ -45,10 +68,6 @@ NET_NAME=<your-network-name>
 1. To launch the app, type the following command in your terminal:
 
         $ python3 app.py
-
-## Workflow
-
-![/IMAGES/workflow.jpg](/IMAGES/workflow.jpg)
 
 ### LICENSE
 
